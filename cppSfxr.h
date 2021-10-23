@@ -1,7 +1,7 @@
 #pragma once
 
 /*
- 	cppSxfr, from:
+	cppSxfr, from:
 
 		sxfr https://www.drpetter.se/project_sfxr.html
 		Copyright (c) 2007 Tomas Pettersson (MIT License)
