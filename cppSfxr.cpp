@@ -1,6 +1,6 @@
 /*
 	cppSxfr, from:
-	
+
 		sxfr https://www.drpetter.se/project_sfxr.html
 		Copyright (c) 2007 Tomas Pettersson (MIT License)
 
@@ -32,7 +32,9 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-
+#include <cstring>
+#include <exception>
+#include <stdexcept>
 #include "cppSfxr.h"
 #include <time.h>
 #include <stdlib.h>
@@ -350,12 +352,12 @@ float SfxrFloatBuffer::operator[](unsigned int index)
 	unsigned int bpos = index % 4096;
 	if (bTable.size() == 0)
 	{
-		if (block > 0) throw new exception("invalid index into SfxrFloatBuffer");
+		if (block > 0) throw new runtime_error("invalid index into SfxrFloatBuffer");
 		return (*pBlock)[bpos];
 	}
 	else
 	{
-		if (block > bTable.size() + 1) throw new exception("invalid index into SfxrFloatBuffer");
+		if (block > bTable.size() + 1) throw new runtime_error("invalid index into SfxrFloatBuffer");
 		if (block == bTable.size())
 			return (*pBlock)[bpos];
 		else
@@ -432,10 +434,10 @@ SfxrCore::SfxrCore()
 	// initialize with the same seed to always give same outputs in a program
 	// wonder what those seeds are in ascii??? :D
 	pcg32_srandom_r(&rt, 0x6350502053667872 ^ 0xABABABAB, 0x6D75726167616D69 ^ 0xBABABABA);
-	#pragma omp simd 
+	#pragma omp simd
 	for (int i = 0; i < 1024; i++)
 		phaser_buffer[i] = 0.0f;
-	#pragma omp simd 
+	#pragma omp simd
 	for (int i = 0; i < 32; i++)
 		noise_buffer[i] = 0.0f;
 }
@@ -504,7 +506,7 @@ void SfxrCore::resetSample(bool restart)
 void SfxrCore::synthSample()
 {
 	int length = 4096;
-	float decimate = 0.0f; 
+	float decimate = 0.0f;
 	float compress = CP(cs_compress);
 
 	if (CP(cs_decimate) != 0)
@@ -640,7 +642,7 @@ void SfxrCore::synthSample()
 			ssample += sample * env_vol;
 		}
 		ssample = ssample / 8.0f;
-		
+
 		// decimate?
 		if (decimate != 0)
 			ssample = trunc(ssample * decimate) / decimate;
@@ -688,13 +690,13 @@ void Sfxr::setPCM(unsigned int sample_rate, unsigned int bit_depth)
 		rebuild = true;
 		core->ratio = (float)core->wav_freq / (float)core->out_freq;
 #else
-		if (sample_rate != 44100) throw new exception("cannot change sample_rate when SFXR_DISALLOW_SAMPLERATE is set in Sfxr::setPCM()");
+		if (sample_rate != 44100) throw new runtime_error("cannot change sample_rate when SFXR_DISALLOW_SAMPLERATE is set in Sfxr::setPCM()");
 #endif
 	}
 	core->wav_bits = bit_depth;		// new bits
-	if (bit_depth % 8 > 0) throw new exception("bit depth must align with 8-bit bytes in Sfxr::setPCM()");
+	if (bit_depth % 8 > 0) throw new runtime_error("bit depth must align with 8-bit bytes in Sfxr::setPCM()");
 	if (bit_depth > 32)
-		throw new exception("bit depth must be 8, 16, 24, or 32 only in Sfxr::setPCM()");
+		throw new runtime_error("bit depth must be 8, 16, 24, or 32 only in Sfxr::setPCM()");
 	sampleBytes = core->wav_bits / 8;
 	switch (sampleBytes)
 	{
@@ -717,16 +719,20 @@ unsigned int Sfxr::sizeWaveString()
 	return 36 + (sampleBytes * totalSamples);
 }
 
-unsigned int Sfxr::sizePCM()
+unsigned int Sfxr::size(ExportFormat f)
 {
-	assertSynthed();
-	return sampleBytes * totalSamples;
-}
-
-unsigned int Sfxr::sizeFloat()
-{
-	assertSynthed();
-	return sizeof(float) * totalSamples;
+	unsigned int sampleSize = 1, headerSize = 0;
+	switch (f)
+	{
+	case ExportFormat::WAVE_PCM: sampleSize = core->wav_bits / 8; headerSize = sizeof(WaveFileHeader); break;
+	case ExportFormat::WAVE_FLOAT: sampleSize = 4; headerSize = sizeof(WaveFloatFileHeader); break;
+	case ExportFormat::PCM8: sampleSize = 1; break;
+	case ExportFormat::PCM16: sampleSize = 2; break;
+	case ExportFormat::PCM24: sampleSize = 3; break;
+	case ExportFormat::PCM32:
+	case ExportFormat::FLOAT: sampleSize = 4; break;
+	}
+	return sampleSize * core->buffer->size() + headerSize;
 }
 
 void Sfxr::assertSynthed()
@@ -911,7 +917,7 @@ bool Sfxr::exportBuffer(ExportFormat method, void* pData)
 		return exportPCM((char*)pData);
 		break;
 	default:
-		throw new exception("invalid export method passed to Sfxr::exportBuffer()");
+		throw new runtime_error("invalid export method passed to Sfxr::exportBuffer()");
 	}
 	return false;
 }
@@ -946,7 +952,7 @@ bool Sfxr::exportStream(ExportFormat method, std::ostream& ofs)
 		return exportPCMStream(ofs);
 		break;
 	default:
-		throw new exception("invalid export method passed to Sfxr::exportBuffer()");
+		throw new runtime_error("invalid export method passed to Sfxr::exportBuffer()");
 	}
 	return false;
 }
@@ -988,7 +994,7 @@ bool Sfxr::exportWaveStream(std::ostream& ofs, bool check_status)
 	WaveFileHeader hdr;
 	hdr.size = (unsigned int)(sampleTotalBytes + sizeof(WaveFileHeader) - 8);	// file size
 	hdr.sample_rate = (unsigned int)core->out_freq;		// sample rate
-	hdr.byte_rate = (unsigned int)(core->out_freq * sampleBytes); 
+	hdr.byte_rate = (unsigned int)(core->out_freq * sampleBytes);
 														// bytes/sec
 	hdr.block_align = (unsigned short)(sampleBytes);	// block align
 	hdr.bits = (unsigned short)core->wav_bits;			// bits per sample
@@ -1016,7 +1022,7 @@ bool Sfxr::exportPCMStream(std::ostream& ofs, bool check_status)
 	// create sample data, if we need to check
 	if (check_status)
 		assertSynthed();
-	
+
 	// now the PCM data
 	switch (sampleBytes)
 	{
@@ -1033,7 +1039,7 @@ bool Sfxr::exportPCMStream(std::ostream& ofs, bool check_status)
 		core->buffer->writeStream32(ofs);
 		break;
 	default:
-		throw new exception("bad size for sampleBytes in Sfxr::exportWaveStream()");
+		throw new runtime_error("bad size for sampleBytes in Sfxr::exportWaveStream()");
 	}
 	return true;
 }
@@ -1091,14 +1097,14 @@ bool Sfxr::exportWaveString(char* data)
 
 bool Sfxr::exportPCM(char* data)
 {
-	OneShotBuf osrb(data, sizePCM());
+	OneShotBuf osrb(data, sampleBytes * totalSamples);
 	std::ostream ostr(&osrb);
 	return exportPCMStream(ostr);
 }
 
 bool Sfxr::exportFloat(float* data)
 {
-	OneShotBuf osrb((char*)data, sizeFloat());
+	OneShotBuf osrb((char*)data, sizeof(float) * totalSamples);
 	std::ostream ostr(&osrb);
 	return exportFloatStream(ostr);
 }
@@ -1113,7 +1119,7 @@ void Sfxr::create(const char* what)
 			return;
 		}
 	}
-	throw new exception("invalid argument sent to Sfxr::create(const char*)");
+	throw new runtime_error("invalid argument sent to Sfxr::create(const char*)");
 }
 
 void Sfxr::create(int what)
@@ -1325,12 +1331,12 @@ int Sfxr::getParamIndex(const char* pname)
 	GPI(HPF_RAMP);
 	GPI(DECIMATE);
 	GPI(COMPRESS);
-	throw new exception("bad name passed to Sfxr::getParamIndex");
+	throw new runtime_error("bad name passed to Sfxr::getParamIndex");
 }
 
 float& Sfxr::operator[](unsigned int i)
 {
-	if (i > 31) throw new exception("invalid index into Sfxr[]");
+	if (i > 31) throw new runtime_error("invalid index into Sfxr[]");
 	float* pos = (float*)&paramData;
 	return pos[i];
 }
@@ -1338,7 +1344,7 @@ float& Sfxr::operator[](unsigned int i)
 float& Sfxr::operator[](const char *p)
 {
 	int i = getParamIndex(p);
-	if (i > 31) throw new exception("invalid index into Sfxr[]");
+	if (i > 31) throw new runtime_error("invalid index into Sfxr[]");
 	float* pos = (float*)&paramData;
 	return pos[i];
 }
@@ -1354,7 +1360,7 @@ void Sfxr::getInfo(SoundInfo* info)
 	info->overhead = (float)info->memoryUsed / (float)info->totalBytes;
 	core->buffer->getLimitAverage(&(info->limit), &(info->average));
 }
-// these are much quicker! and don't return all the extra info	
+// these are much quicker! and don't return all the extra info
 void Sfxr::getInfo(SoundQuickInfo& info) { getInfo(&info);  }
 void Sfxr::getInfo(SoundQuickInfo* info)
 {
@@ -1363,7 +1369,3 @@ void Sfxr::getInfo(SoundQuickInfo* info)
 	info->totalSamples = core->buffer->size();
 	info->duration = (float)info->totalSamples / (float)core->out_freq;
 }
-
-
-
-

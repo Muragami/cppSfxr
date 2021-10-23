@@ -2,10 +2,10 @@
 
 /*
  	cppSxfr, from:
-	
+
 		sxfr https://www.drpetter.se/project_sfxr.html
 		Copyright (c) 2007 Tomas Pettersson (MIT License)
-	
+
 	Rewritten into an engine only that outputs PCM data.
 	Jason A. Petrasko (C) 2021
 
@@ -186,7 +186,7 @@ public:
 	// these are non-trivial because we scan the output for limit and average samples, FYI
 	void getInfo(SoundInfo& info);
 	void getInfo(SoundInfo* info);
-	// these are much quicker! and don't return all the extra info	
+	// these are much quicker! and don't return all the extra info
 	void getInfo(SoundQuickInfo& info);
 	void getInfo(SoundQuickInfo* info);
 	// get an index of a named parameter
@@ -207,18 +207,14 @@ private:
 	ExportFormat format = ExportFormat::FLOAT;
 
 	void assertSynthed();
+	unsigned int sizeWaveString();
+	unsigned int sizeWaveFloatString();
 	bool exportWaveString(char* data);
 	bool exportWaveFloatString(char* data);
 	bool exportPCM(char* data);
 	bool exportFloat(float* data);
-	unsigned int sizeWaveString();
-	unsigned int sizeWaveFloatString();
-	unsigned int sizePCM();
-	unsigned int sizeFloat();
 	bool exportWaveStream(std::ostream& ofs, bool check_status = true);
 	bool exportWaveFloatStream(std::ostream& ofs, bool check_status = true);
 	bool exportPCMStream(std::ostream& ofs, bool check_status = true);
 	bool exportFloatStream(std::ostream& ofs, bool check_status = true);
-
 };
-
