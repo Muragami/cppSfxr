@@ -56,7 +56,7 @@ typedef struct _csSfxr {
   void* (*_new)();
   void (*_delete)(void *p);
   void (*seed_uint)(void* p, unsigned long long s);
-	void (*seed_str)(void* p, const char* s);	// must be 4 bytes at least or even better 8 bytes!
+	void (*seed_str)(void* p, const char* s);
   void (*reset)(void *p);
   void (*mutate)(void *p);
   void (*randomize)(void *p);
@@ -69,7 +69,7 @@ typedef struct _csSfxr {
   bool (*write_file)(void *p, const char* fname);
   bool (*load_string)(void *p, const char* data);
   bool (*write_string)(void *p, char* data);
-  bool (*export_buffer)(void *p, unsigned int method, void* pData);	// output to a buffer, use the size)() call to know how large to make it
+  bool (*export_buffer)(void *p, unsigned int method, void* pData);
   bool (*export_wavefile)(void *p, const char* fname);
   bool (*export_wavefloatfile)(void *p, const char* fname);
   unsigned int (*size)(void *p, unsigned int method);
@@ -119,11 +119,17 @@ Sfxr.Sound = {
   JUMP = 5, BLIP_SELECT = 6
 }
 
-Sfxr.p = pSfxr._new()
 Sfxr.qi = ffi.new("struct _csSoundQuickInfo")
+Sfxr.fi = ffi.new("struct _csSoundInfo")
 Sfxr.pm = ffi.new("struct _csParameters")
+Sfxr.p = nil
+
+function Sfxr:assertp()
+  if self.p == nil then error ("pointer not initialized, did you forget :init(), Sfxr::assertp()") end
+end
 
 function Sfxr:seed(i)
+  self:assertp()
   if type(i) == 'number' then
     pSfxr.seed_uint(self.p,i)
   elseif type(i) == 'string' then
@@ -132,6 +138,7 @@ function Sfxr:seed(i)
 end
 
 function Sfxr:create(i)
+  self:assertp()
   if type(i) == 'number' then
     pSfxr.create_int(self.p,i)
   elseif type(i) == 'string' then
@@ -140,6 +147,7 @@ function Sfxr:create(i)
 end
 
 function Sfxr:setParams(t)
+  self:assertp()
   Sfxr.pm.wave_type = t.wave_type
   Sfxr.pm.env_attack = t.env_attack
   Sfxr.pm.env_sustain = t.env_sustain
@@ -170,7 +178,46 @@ function Sfxr:setParams(t)
   pSfxr.set_parameters(self.p,Sfxr.pm)
 end
 
+function Sfxr:setPackedParams(t)
+  self:assertp()
+  Sfxr.pm.wave_type = t[1]
+  Sfxr.pm.env_attack = t[2]
+  Sfxr.pm.env_sustain = t[3]
+  Sfxr.pm.env_punch = t[4]
+  Sfxr.pm.env_decay = t[5]
+  Sfxr.pm.base_freq = t[6]
+  Sfxr.pm.freq_limit = t[7]
+  Sfxr.pm.freq_ramp = t[8]
+  Sfxr.pm.freq_dramp = t[9]
+  Sfxr.pm.vib_strength = t[10]
+  Sfxr.pm.vib_speed = t[11]
+  Sfxr.pm.vib_delay = t[12]
+  Sfxr.pm.arp_mod = t[13]
+  Sfxr.pm.arp_speed = t[14]
+  Sfxr.pm.duty = t[15]
+  Sfxr.pm.duty_ramp = t[16]
+  Sfxr.pm.repeat_speed = t[17]
+  Sfxr.pm.pha_offset = t[18]
+  Sfxr.pm.pha_ramp = t[19]
+  Sfxr.pm.filter_on = t[20]
+  Sfxr.pm.lpf_freq = t[21]
+  Sfxr.pm.lpf_ramp = t[22]
+  Sfxr.pm.lpf_resonance = t[23]
+  Sfxr.pm.hpf_freq = t[24]
+  Sfxr.pm.hpf_ramp = t[25]
+  Sfxr.pm.cs_decimate = t[26]
+  Sfxr.pm.cs_compress = t[27]
+  pSfxr.set_parameters(self.p,Sfxr.pm)
+end
+
+function Sfxr:setParamString(str)
+  self:assertp()
+  ffi.copy(Sfxr.pm,str)
+  pSfxr.set_parameters(self.p,Sfxr.pm)
+end
+
 function Sfxr:getParams()
+  self:assertp()
   ffi.copy(Sfxr.pm,pSfxr.get_parameters(self.p),ffi.sizeof("struct _csParameters"))
   local ret = {}
   ret.wave_type = Sfxr.pm.wave_type
@@ -200,22 +247,109 @@ function Sfxr:getParams()
   ret.hpf_ramp = Sfxr.pm.hpf_ramp
   ret.cs_decimate = Sfxr.pm.cs_decimate
   ret.cs_compress = Sfxr.pm.cs_compress
-  return ret;
+  return ret
+end
+
+function Sfxr:getParamString()
+  self:assertp()
+  ffi.copy(Sfxr.pm,pSfxr.get_parameters(self.p),ffi.sizeof("struct _csParameters"))
+  return ffi.string(Sfxr.pm,ffi.sizeof("struct _csParameters"))
+end
+
+function Sfxr:getPackedParams()
+  self:assertp()
+  ffi.copy(Sfxr.pm,pSfxr.get_parameters(self.p),ffi.sizeof("struct _csParameters"))
+  local ret = {}
+  ret[1] = Sfxr.pm.wave_type
+  ret[2] = Sfxr.pm.env_attack
+  ret[3] = Sfxr.pm.env_sustain
+  ret[4] = Sfxr.pm.env_punch
+  ret[5] = Sfxr.pm.env_decay
+  ret[6] = Sfxr.pm.base_freq
+  ret[7] = Sfxr.pm.freq_limit
+  ret[8] = Sfxr.pm.freq_ramp
+  ret[9] = Sfxr.pm.freq_dramp
+  ret[10] = Sfxr.pm.vib_strength
+  ret[11] = Sfxr.pm.vib_speed
+  ret[12] = Sfxr.pm.vib_delay
+  ret[13] = Sfxr.pm.arp_mod
+  ret[14] = Sfxr.pm.arp_speed
+  ret[15] = Sfxr.pm.duty
+  ret[16] = Sfxr.pm.duty_ramp
+  ret[17] = Sfxr.pm.repeat_speed
+  ret[18] = Sfxr.pm.pha_offset
+  ret[19] = Sfxr.pm.pha_ramp
+  ret[20] = Sfxr.pm.filter_on
+  ret[21] = Sfxr.pm.lpf_freq
+  ret[22] = Sfxr.pm.lpf_ramp
+  ret[23] = Sfxr.pm.lpf_resonance
+  ret[24] = Sfxr.pm.hpf_freq
+  ret[25] = Sfxr.pm.hpf_ramp
+  ret[26] = Sfxr.pm.cs_decimate
+  ret[27] = Sfxr.pm.cs_compress
+  return ret
+end
+
+function Sfxr:getParamf(i)
+  self:assertp()
+  return pSfxr.get_param(self.p,i)
+end
+
+function Sfxr:setParamf(i,f)
+  self:assertp()
+  return pSfxr.set_param(self.p,i,f)
 end
 
 function Sfxr:mutate()
+  self:assertp()
   pSfxr.mutate(self.p)
 end
 
 function Sfxr:randomize()
+  self:assertp()
   pSfxr.randomize(self.p)
 end
 
+function Sfxr:getInfoQ()
+  self:assertp()
+  pSfxr.get_infoq(self.p,self.qi)
+  local ret = {}
+  ret.duration = self.pi.duration;
+  ret.totalSamples = self.pi.totalSamples;
+  ret.totalBytes = self.pi.totalSamples * 2;
+  return ret;
+end
+
+function Sfxr:getInfo()
+  self:assertp()
+  pSfxr.get_info(self.p,self.fi)
+  local ret = {}
+  ret.duration = self.fi.duration;
+  ret.totalSamples = self.fi.totalSamples;
+  ret.totalBytes = self.fi.totalSamples * 2;
+  ret.memoryUsed = self.fi.memoryUsed;
+  ret.overhead = self.fi.overhead;
+  ret.limit = self.fi.limit;
+  ret.average = self.fi.average;
+  return ret;
+end
+
 function Sfxr:soundData()
+  self:assertp()
   pSfxr.get_infoq(self.p,self.qi)
   snd = love.sound.newSoundData(self.qi.totalSamples, 44100, 16, 1)
   pSfxr.export_buffer(self.p,Sfxr.ExportFormat.PCM16,snd:getPointer())
   return snd
+end
+
+function Sfxr:release()
+  self:assertp()
+  pSfxr._delete(self.p)
+  self.p = nil
+end
+
+function Sfxr:init()
+  self.p = pSfxr._new()
 end
 
 return Sfxr
