@@ -4,17 +4,8 @@
 		sxfr https://www.drpetter.se/project_sfxr.html
 		Copyright (c) 2007 Tomas Pettersson (MIT License)
 
-	Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
-	files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use,
-	copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
-	Software is furnished to do so, subject to the following conditions:
-
-	The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-	OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-	HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-	FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+	Now under the Apache-2.0 License (due to included PCG32 code):
+		https://www.apache.org/licenses/LICENSE-2.0
 
 	Rewritten into an engine only that outputs PCM data.
 	Jason A. Petrasko 2021
@@ -120,7 +111,7 @@ typedef struct WaveFloatFileHeader {
 #define frndc(range) ((float)rndc(10000) / 10000 * range)
 
 #define C(x) core->x
-#define CP(x) parent->paramData.x
+#define CP(x) param->x
 #define PV(x) paramData.x
 
 
@@ -367,8 +358,6 @@ float SfxrFloatBuffer::operator[](unsigned int index)
 // *************************************************************************************
 
 
-unsigned int _sfxr_local_rounds = 42;
-
 // *************************************************************************************
 class SfxrCore
 {
@@ -420,9 +409,13 @@ public:
 
 	pcg32_random_t rt;
 	Sfxr* parent = nullptr;
+	Sfxr::Parameters* param = nullptr;
 	SfxrFloatBuffer* buffer = nullptr;
 
 	SfxrCore();
+
+	void seed(unsigned long long s);
+	void seed(const char* s);
 
 	void resetSample(bool restart);
 	void synthSample();
@@ -440,6 +433,24 @@ SfxrCore::SfxrCore()
 	#pragma omp simd
 	for (int i = 0; i < 32; i++)
 		noise_buffer[i] = 0.0f;
+}
+
+void SfxrCore::seed(unsigned long long s)
+{
+	pcg32_srandom_r(&rt, 0x6350502053667872 ^ s, 0x6D75726167616D69 & s);
+}
+
+void SfxrCore::seed(const char* s)
+{
+	size_t len = strlen(s);
+	if (len < 4) throw new std::runtime_error("string of less than 4 chars sent to SfxrCore::seed()");
+	uint64_t A, B = 0;
+	A = (uint64_t)(s[0]) + ((uint64_t)(s[1]) << 8) + ((uint64_t)(s[2]) << 16) + ((uint64_t)(s[3]) << 24);
+	unsigned int i = 4;
+	while ((i < len) && (i < 8))
+		B += uint64_t(s[i]) << (i - 4);
+	if (B == 0) B = 0xBABABABA;
+	pcg32_srandom_r(&rt, 0x6350502053667872 ^ A, 0x6D75726167616D69 & B);
 }
 
 void SfxrCore::resetSample(bool restart)
@@ -668,7 +679,23 @@ Sfxr::Sfxr(unsigned int sample_rate, unsigned int bit_depth)
 	reset();
 	core = new SfxrCore();
 	core->parent = this;
+	core->param = getParameters();
 	setPCM(sample_rate, bit_depth);
+}
+
+Sfxr::Parameters* Sfxr::getParameters()
+{
+	return &paramData;
+}
+
+void Sfxr::seed(unsigned long long s)
+{
+	core->seed(s);
+}
+
+void Sfxr::seed(const char* s)
+{
+	core->seed(s);
 }
 
 void Sfxr::setFloat()
@@ -1097,7 +1124,7 @@ bool Sfxr::exportWaveString(char* data)
 
 bool Sfxr::exportPCM(char* data)
 {
-	OneShotBuf osrb(data, sampleBytes * totalSamples);
+	OneShotBuf osrb(data, (size_t)sampleBytes * (size_t)totalSamples);
 	std::ostream ostr(&osrb);
 	return exportPCMStream(ostr);
 }

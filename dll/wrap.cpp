@@ -69,6 +69,8 @@ struct csSoundQuickInfo
 struct csSfxr {
   void* (*_new)();
   void (*_delete)(void *p);
+  void (*seed_uint)(void* p, unsigned long long s);
+  void (*seed_str)(void* p, const char* s);	// must be 4 bytes at least or even better 8 bytes!
   void (*reset)(void *p);
   void (*mutate)(void *p);
   void (*randomize)(void *p);
@@ -76,6 +78,7 @@ struct csSfxr {
   void (*create_int)(void *p, int what);
   void (*create)(void *p);
   void (*set_parameters)(void *p, csParameters* x);
+  csParameters* (*get_parameters)(void *p);
   // these all are methods to read and save the parameter data
   bool (*load_file)(void *p, const char* fname);
   bool (*write_file)(void *p, const char* fname);
@@ -258,6 +261,21 @@ DLLAPI void cs_set_param(void *p, int index, float f)
   (*CP)[index] = f;
 }
 
+DLLAPI void cs_seed_uint(void* p, unsigned long long s)
+{
+  CP->seed(s);
+}
+
+DLLAPI void cs_seed_str(void* p, const char* s)	// must be 4 bytes at least or even better 8 bytes!
+{
+  CP->seed(s);
+}
+
+DLLAPI csParameters* cs_get_parameters(void *p)
+{
+  return (csParameters*)CP->getParameters();
+}
+
 DLLAPI void cs_get(csSfxr* p)
 {
   p->_new = cs_new;
@@ -293,4 +311,8 @@ DLLAPI void cs_get(csSfxr* p)
   p->get_paramindex = cs_get_paramindex;
   p->get_param = cs_get_param;
   p->set_param = cs_set_param;
+
+  p->seed_uint = cs_seed_uint;
+  p->seed_str = cs_seed_str;
+  p->get_parameters = cs_get_parameters;
 }

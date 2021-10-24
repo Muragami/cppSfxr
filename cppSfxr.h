@@ -9,7 +9,7 @@
 	Rewritten into an engine only that outputs PCM data.
 	Jason A. Petrasko (C) 2021
 
-	-> see Sfxr.cpp for license and change details
+	-> see Sfxr.cpp for change details
 
 	notes:
 		* since WAV file format is little endian, output of writeStreams as the same, and assume operation on a little endian arch.
@@ -155,13 +155,21 @@ public:
 	Sfxr(unsigned int sample_rate = 44100, unsigned int bit_depth = 16);
 
 	void reset();
+	// all of these function use PCG32, so you might want to seed it to make the exact same sounds if that is a use case?
 	void mutate();
 	void randomize();
 	void create(const char* what);
 	void create(int what);
+	// seed functions
+	void seed(unsigned long long s);
+	void seed(const char* s);	// must be 4 bytes at least or even better 8 bytes!
+	// synth the sound!
 	void create();
+	// set Parameters
 	void setParameters(Parameters& p);
 	void setParameters(Parameters* p);
+	// get Parameters
+	Parameters* getParameters();
 	// these all are methods to read and save the parameter data
 	bool loadFile(const char* fname);
 	bool writeFile(const char* fname);
@@ -196,10 +204,9 @@ public:
 	// get/set the parameter at an index, like so: wave_type = mySfxr["WAVE TYPE"]; or mySfxr["WAVE_TYPE"] = 2;
 	float& operator[](const char* p);
 
-	Parameters paramData;
-
 private:
 	SfxrCore* core;
+	Parameters paramData;
 	bool created = false;
 	bool rebuild = false;
 	int fromWhat = 0;

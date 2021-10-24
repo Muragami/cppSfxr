@@ -140,6 +140,8 @@ struct csSoundQuickInfo
 struct csSfxr {
   void* (*new)();
   void (*delete)(void *p);
+  void (*seed_uint)(void* p, unsigned long long s);
+	void (*seed_str)(void* p, const char* s);	// must be 4 bytes at least or even better 8 bytes!
   void (*reset)(void *p);
   void (*mutate)(void *p);
   void (*randomize)(void *p);
@@ -147,6 +149,7 @@ struct csSfxr {
   void (*create_int)(void *p, int what);
   void (*create)(void *p);
   void (*set_parameters)(void *p, csParameters* p);
+  csParameters* (*get_parameters)(void *p);
   // these all are methods to read and save the parameter data
   bool (*load_file)(void *p, const char* fname);
   bool (*write_file)(void *p, const char* fname);
@@ -176,6 +179,8 @@ struct csSfxr {
 DLLAPI void cs_get(csSfxr* p);
 DLLAPI void* cs_new();
 DLLAPI void cs_delete(void *p);
+DLLAPI void cs_seed_uint(void* p, unsigned long long s);
+DLLAPI void cs_seed_str(void* p, const char* s);	// must be 4 bytes at least or even better 8 bytes!
 DLLAPI void cs_reset(void *p);
 DLLAPI void cs_mutate(void *p);
 DLLAPI void cs_randomize(void *p);
@@ -183,6 +188,7 @@ DLLAPI void cs_create_str(void *p, const char* what);
 DLLAPI void cs_create_int(void *p, int what);
 DLLAPI void cs_create(void *p);
 DLLAPI void cs_set_parameters(void *p, csParameters* p);
+DLLAPI csParameters* cs_get_parameters(void *p);
 // these all are methods to read and save the parameter data
 DLLAPI bool cs_load_file(void *p, const char* fname);
 DLLAPI bool cs_write_file(void *p, const char* fname);
