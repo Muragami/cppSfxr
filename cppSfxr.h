@@ -197,6 +197,7 @@ public:
 	float& operator[](const char* p);
 
 	Parameters paramData;
+
 private:
 	SfxrCore* core;
 	bool created = false;
