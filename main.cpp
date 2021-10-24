@@ -1,8 +1,10 @@
 #include <iostream>
+#include <fstream>
 #include "cppSfxr.h"
 #include <chrono>
 
 using namespace std::chrono;
+using namespace std;
 
 class Benchmark
 {
@@ -28,6 +30,15 @@ int main()
 	std::cout << "\t *save same sound as 8-bit pickup_coin_lowres.wav!\n";
 	pSfxr->setPCM(0, 8);
 	pSfxr->exportWaveFile("snd_randomize_lowres.wav");
+
+
+	std::cout << "\t *testing string output PCM8 on randomize sample!\n";
+	char* buffer;
+	unsigned int blen = pSfxr->size(Sfxr::ExportFormat::PCM8);
+	buffer = new char[blen];
+	pSfxr->exportBuffer(Sfxr::ExportFormat::PCM8, buffer);
+	ofstream ofs("snd_randomize_44100_8.raw", ios::binary);
+	ofs.write(buffer, blen);
 
 	pSfxr->setPCM();
 

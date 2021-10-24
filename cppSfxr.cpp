@@ -1083,11 +1083,19 @@ bool Sfxr::exportWaveFloatFile(const char* fname)
 	return exportWaveFloatStream(ofs);
 }
 
-struct OneShotBuf : public std::streambuf
+struct sxfrInputBuffer : public std::streambuf
 {
-	OneShotBuf(const char* s, std::size_t n)
+	sxfrInputBuffer(const char* s, std::size_t n)
 	{
 		setg((char*)s, (char*)s, (char*)s + n);
+	}
+};
+
+struct sxfrOutputBuffer : public std::streambuf
+{
+	sxfrOutputBuffer(const char* s, std::size_t n)
+	{
+		setp((char*)s, (char*)s, (char*)s + n);
 	}
 };
 
@@ -1095,43 +1103,42 @@ bool Sfxr::loadString(const char* data)
 {
 	size_t dataSize = sizeof(data);
 	if (dataSize < 2 * sizeof(float) + sizeof(paramData)) return false;
-	OneShotBuf osrb(data, dataSize);
+	sxfrInputBuffer osrb(data, dataSize);
 	std::istream istr(&osrb);
 	return loadStream(istr);
 }
 
 bool Sfxr::writeString(char* data)
 {
-	OneShotBuf osrb(data, 2 * sizeof(float) + sizeof(paramData));
+	sxfrOutputBuffer osrb(data, 2 * sizeof(float) + sizeof(paramData));
 	std::ostream ostr(&osrb);
 	return writeStream(ostr);
 }
 
 bool Sfxr::exportWaveFloatString(char* data)
 {
-
-	OneShotBuf osrb(data, sizeWaveString());
+	sxfrOutputBuffer osrb(data, sizeWaveString());
 	std::ostream ostr(&osrb);
 	return exportWaveFloatStream(ostr);
 }
 
 bool Sfxr::exportWaveString(char* data)
 {
-	OneShotBuf osrb(data, sizeWaveString());
+	sxfrOutputBuffer osrb(data, sizeWaveString());
 	std::ostream ostr(&osrb);
 	return exportWaveStream(ostr);
 }
 
 bool Sfxr::exportPCM(char* data)
 {
-	OneShotBuf osrb(data, (size_t)sampleBytes * (size_t)totalSamples);
+	sxfrOutputBuffer osrb(data, (size_t)sampleBytes * (size_t)totalSamples);
 	std::ostream ostr(&osrb);
 	return exportPCMStream(ostr);
 }
 
 bool Sfxr::exportFloat(float* data)
 {
-	OneShotBuf osrb((char*)data, sizeof(float) * totalSamples);
+	sxfrOutputBuffer osrb((char*)data, sizeof(float) * totalSamples);
 	std::ostream ostr(&osrb);
 	return exportFloatStream(ostr);
 }
