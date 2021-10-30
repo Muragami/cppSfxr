@@ -11,7 +11,7 @@
 	Jason A. Petrasko 2021
 
 	Not an exact replica, some changes made:
-		* added local PRNG engine (PCG32, thanks slime)
+		* added local PRNG engine (PCG32, thanks slime), but using fast repeatable xorshift* 64 bit rng for internal noise buffers
 		* works totally in memory (generate local float buffer)
 		* supports writing to and from streams
 		* OOPS! (bit off more than I could chew) currently broken sample_rate support, so still locked at 44100 hz
@@ -19,6 +19,7 @@
 		* added parameter "DECIMATE": decimate (to bit size) valid range 2.0 to 12.0 (target bits)
 		* made the float paramter block size 128 bytes, 32 floats. currently using 27, leaving 5 for the future
 		* code accepts versions from streams 1.0f to <2.0f, allowing for expansion (maybe using those extra 5 parameters)
+		* added wave types: pink noise, triangle, tan, breaker, and one-bit noise from bfxr here: https://github.com/madeso/bfxr
 */
 
 #define _USE_MATH_DEFINES
@@ -357,6 +358,93 @@ float SfxrFloatBuffer::operator[](unsigned int index)
 }
 // *************************************************************************************
 
+// *************************************************************************************
+// randxs functions, quick xorshift* prng for noise banks
+class RandXS
+{
+public:
+	uint64_t a;
+
+	RandXS(uint64_t seed = 0) { a = seed ^ 0xA0110B01C9774200; }
+
+	inline void seed(uint64_t s) { a = s ^ 0xA0110B01C9774200; }
+
+	inline uint64_t rand()
+	{
+		uint64_t x = a;
+		x ^= x >> 12;
+		x ^= x << 25;
+		x ^= x >> 27;
+		a = x;
+		return x * 0x2545F4914F6CDD1DULL;
+	}
+
+	inline uint32_t rand32()
+	{
+		uint64_t x = a;
+		x ^= x >> 12;
+		x ^= x << 25;
+		x ^= x >> 27;
+		a = x;
+		return (x * 0x2545F4914F6CDD1DULL) & 0xFFFFFFFF;
+	}
+
+	inline float randf()
+	{
+		return (float)rand32() / (float)0xFFFFFFFF;
+	}
+
+	inline double randd()
+	{
+		return (double)rand() / (double)0xFFFFFFFFFFFFFFFF;
+	}
+};
+
+// *************************************************************************************
+// pink noise
+class PinkNumber
+{
+private:
+	RandXS rxs;
+	int max_key;
+	int key;
+	unsigned int white_values[5];
+	unsigned int range;
+public:
+	PinkNumber(unsigned int range = 65536)
+	{
+		max_key = 0x1f; // Five bits set
+		this->range = range;
+		key = 0;
+		for (int i = 0; i < 5; i++)
+			white_values[i] = rxs.rand32() % (range / 5);
+	}
+
+	int getNextValue()
+	{
+		int last_key = key;
+		unsigned int sum;
+
+		key++;
+		if (key > max_key)
+			key = 0;
+
+		int diff = last_key ^ key;
+		sum = 0;
+		for (int i = 0; i < 5; i++)
+		{
+			if (diff & (1 << i))
+				white_values[i] = rxs.rand32() % (range / 5);
+			sum += white_values[i];
+		}
+		return sum;
+	}
+
+	float getNextFloat()
+	{
+		return (float)getNextValue() / (float)range;
+	}
+};
 
 // *************************************************************************************
 class SfxrCore
@@ -380,6 +468,7 @@ public:
 	float phaser_buffer[1024];
 	float ipp = 0;
 	float noise_buffer[32];
+	float pink_noise_buffer[32];
 	float fltp = 0.0f;
 	float fltdp = 0.0f;
 	float fltw = 0.0f;
@@ -397,6 +486,9 @@ public:
 	float arp_limit = 0;
 	double arp_mod = 0.0;
 
+	int one_bit_noisestate = 0;
+	double one_bit_noise = 0.0;
+
 	float sound_vol = 0.5f;
 	float master_vol = 0.25f;
 
@@ -407,6 +499,9 @@ public:
 
 	bool playing_sample = false;
 
+	PinkNumber pn;
+
+	RandXS rxs;
 	pcg32_random_t rt;
 	Sfxr* parent = nullptr;
 	Sfxr::Parameters* param = nullptr;
@@ -421,6 +516,8 @@ public:
 	void synthSample();
 };
 
+#define xsrndf(range)  (rxs.randf() * range)
+
 SfxrCore::SfxrCore()
 {
 	buffer = new SfxrFloatBuffer();
@@ -432,7 +529,10 @@ SfxrCore::SfxrCore()
 		phaser_buffer[i] = 0.0f;
 	#pragma omp simd
 	for (int i = 0; i < 32; i++)
+	{
 		noise_buffer[i] = 0.0f;
+		pink_noise_buffer[i] = 0.0f;
+	}
 }
 
 void SfxrCore::seed(unsigned long long s)
@@ -473,6 +573,8 @@ void SfxrCore::resetSample(bool restart)
 		arp_limit = 0;
 	if (!restart)
 	{
+		rxs.seed(0); // reset random buffer generation
+		one_bit_noisestate = 1 << 14;
 		// reset filter
 		fltp = 0.0f;
 		fltdp = 0.0f;
@@ -505,7 +607,10 @@ void SfxrCore::resetSample(bool restart)
 			phaser_buffer[i] = 0.0f;
 
 		for (int i = 0; i < 32; i++)
-			noise_buffer[i] = frndc(2.0f) - 1.0f;
+		{
+			noise_buffer[i] = xsrndf(2.0f) - 1.0f;
+			pink_noise_buffer[i] = pn.getNextFloat() * 2.0f - 1.0f;
+		}
 
 		rep_time = 0;
 		rep_limit = trunc(pow(1.0f - CP(repeat_speed), 2.0f) * 20000.0f + 32.0f);
@@ -601,28 +706,56 @@ void SfxrCore::synthSample()
 			if (phase >= period)
 			{
 				phase = fmod(phase,period);
-				if (wave_type == 3)
+				if (wave_type == SFXR_WAVE_NOISE)
 					for (int i = 0; i < 32; i++)
-						noise_buffer[i] = frndc(2.0f) - 1.0f;
+						noise_buffer[i] = xsrndf(2.0f) - 1.0f;
+				else if (wave_type == SFXR_WAVE_PINK)
+				{
+					for (int i = 0; i < 32; i++)
+						pink_noise_buffer[i] = pn.getNextFloat() * 2.0f - 1.0f;
+				}
+				else if (wave_type == SFXR_WAVE_1BIT)
+				{
+					const int feedBit = (one_bit_noisestate >> 1 & 1) ^ (one_bit_noisestate & 1);
+					one_bit_noisestate = one_bit_noisestate >> 1 | (feedBit << 14);
+					one_bit_noise = double(~one_bit_noisestate & 1) - 0.5;
+				}
 			}
 			// base waveform
 			float fp = phase / period;
+			double amp;
 			switch (wave_type)
 			{
-			case 0: // square
+			case SFXR_WAVE_SQUARE:
 				if (fp < square_duty)
 					sample = 0.5f;
 				else
 					sample = -0.5f;
 				break;
-			case 1: // sawtooth
-				sample = 1.0f - fp * 2;
+			case SFXR_WAVE_SAWTOOTH:
+				sample = 1.0f - fp * 2.0f;
 				break;
-			case 2: // sine
+			case SFXR_WAVE_SINE:
 				sample = (float)sin((double)fp * 2.0 * M_PI);
 				break;
-			case 3: // noise
+			case SFXR_WAVE_NOISE:
 				sample = noise_buffer[(int)(phase * 32.0f / period)];
+				break;
+			case SFXR_WAVE_TRIANGLE:
+				sample = fabs(1.0f - (phase / period) * 2.0f) - 1.0f;
+				break;
+			case SFXR_WAVE_PINK:
+				sample = pink_noise_buffer[(int)(phase * 32.0f / period)];
+				break;
+			case SFXR_WAVE_TAN:
+				sample += tan((float)M_PI * phase / period);
+				break;
+			case SFXR_WAVE_BREAKER:
+				amp = phase / period;
+				sample += (float)fabs(1.0 - amp * amp * 2.0) - 1.0f;
+				break;
+			case SFXR_WAVE_1BIT:
+				sample += (float)one_bit_noise;
 				break;
 			}
 			// lp filter

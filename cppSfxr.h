@@ -91,6 +91,16 @@
 
 #define SFXR_SAMPLERATE_INVALID	0
 
+#define SFXR_WAVE_SQUARE		0
+#define SFXR_WAVE_SAWTOOTH		1
+#define SFXR_WAVE_SINE			2
+#define SFXR_WAVE_NOISE			3
+#define SFXR_WAVE_TRIANGLE		4
+#define SFXR_WAVE_PINK			5
+#define SFXR_WAVE_TAN	 		6
+#define SFXR_WAVE_BREAKER		7
+#define SFXR_WAVE_1BIT			8
+
 // hide a lot of the internal stuff to make this nice and clean
 class SfxrCore;
 

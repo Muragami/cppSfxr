@@ -9,11 +9,11 @@ game engine. The core sound generation engine was originally written by
 It is purely a sound generation library, and has no connections to any audio
 rendering engines or systems. The advantage of this is that it is easily compiled
 anywhere little endian systems allow. A precompiled dynamic link library is provided
-for the following platforms:
+for the following platforms (in th dll folder):
 
 * **Windows**: x64cppSfxr.dll, compiled with MSVC, for any Intel AMD64 machine
 * **Mac OS X**: x64cppSfxr.dylib, compiled with gcc/clang via brew, for Intel macs.
 * **Debian**: x64cppSfxr.so, compiled with gcc, for any Intel AMD64 machine.
 
 While not provided prebuilt, it is also trivial to compile into a small static library
-you can link into your application.
+you can link into your application. The code has been compiled against iso:std++17 standard.
