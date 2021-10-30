@@ -86,6 +86,20 @@ extern "C" {
 #define SFXR_FORMAT_PCM32       5
 #define SFXR_FORMAT_FLOAT       6
 
+#define SFXR_WAVE_SQUARE		0
+#define SFXR_WAVE_SAWTOOTH		1
+#define SFXR_WAVE_SINE			2
+#define SFXR_WAVE_NOISE			3
+#define SFXR_WAVE_TRIANGLE		4
+#define SFXR_WAVE_PINK			5
+#define SFXR_WAVE_TAN	 		6
+#define SFXR_WAVE_BREAKER		7
+#define SFXR_WAVE_1BIT			8
+
+#define SFXR_PLAIN_MODE			0
+#define SFXR_NORMALIZE			1
+#define SFXR_WORD_MODE			2
+
 struct csParameters {
   float wave_type = 0.0f;
   float env_attack = 0.0f;
@@ -166,6 +180,10 @@ struct csSfxr {
   void (*set_PCM)(void *p, unsigned int sample_rate, unsigned int bit_depth);
   // using float format
   void (*set_float)(void *p);
+  // set operating mode options (see options above, all bit flagged)
+  void (*set_mode)(unsigned int m);
+  // get operating mode options
+  unsigned int (*get_mode)();
   // this is non-trivial because we scan the output for limit and average samples, FYI
   void (*get_info)(void *p, csSoundInfo* info);
   // this is much quicker! and don't return all the extra info
@@ -205,6 +223,10 @@ DLLAPI unsigned int cs_size(void *p, unsigned int method);
 DLLAPI void cs_set_PCM(void *p, unsigned int sample_rate, unsigned int bit_depth);
 // using float format
 DLLAPI void cs_set_float(void *p);
+// set operating mode options (see options above, all bit flagged)
+DLLAPI void cs_set_mode(void *p, unsigned int m);
+// get operating mode options
+DLLAPI unsigned int cs_get_mode(void *p);
 // this is non-trivial because we scan the output for limit and average samples, FYI
 DLLAPI void cs_get_info(void *p, csSoundInfo* info);
 // this is much quicker! and don't return all the extra info

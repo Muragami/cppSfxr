@@ -107,12 +107,13 @@ typedef struct WaveFloatFileHeader {
 // *************************************************************************************
 #pragma pack()
 
+// random macros, really should get rid of this! TODO
 #define rnd(n) (pcg32_random_r(&core->rt)%(n+1))
 #define rndc(n) (pcg32_random_r(&rt)%(n+1))
 #define frnd(range) ((float)rnd(10000) / 10000 * range)
 #define frndc(range) ((float)rndc(10000) / 10000 * range)
 
-#define C(x) core->x
+// access macros, cleans up code a lot from the source
 #define CP(x) param->x
 #define PV(x) paramData.x
 
@@ -513,7 +514,6 @@ public:
 	bool playing_sample = false;
 
 	PinkNumber pn;
-
 	RandXS rxs;
 	pcg32_random_t rt;
 	Sfxr* parent = nullptr;
@@ -1104,6 +1104,7 @@ bool Sfxr::writeStream(ostream& ofs)
 		ofs.write((const char*)&wordTable, sizeof(wordTable));
 		x = (int16_t)(core->sound_vol * 32000.0f);
 		ofs.write((const char*)&x, 2);
+		return true;
 	}
 	else
 	{

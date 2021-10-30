@@ -97,6 +97,10 @@ extern "C" {
         void (*set_PCM)(void* p, unsigned int sample_rate, unsigned int bit_depth);
         // using float format
         void (*set_float)(void* p);
+        // set operating mode options (see options above, all bit flagged)
+        void (*set_mode)(void *p, unsigned int m);
+        // get operating mode options
+        unsigned int (*get_mode)(void* p);
         // this is non-trivial because we scan the output for limit and average samples, FYI
         void (*get_info)(void* p, csSoundInfo* info);
         // this is much quicker! and don't return all the extra info
@@ -235,6 +239,18 @@ extern "C" {
         CP->setFloat();
     }
 
+    // set operating mode options (see options above, all bit flagged)
+    DLLAPI void cs_set_mode(void *p, unsigned int m)
+    {
+      CP->setMode(m);
+    }
+
+    // get operating mode options
+    DLLAPI unsigned int cs_get_mode(void *p)
+    {
+      return CP->getMode();
+    }
+
     // this is non-trivial because we scan the output for limit and average samples, FYI
     DLLAPI void cs_get_info(void* p, csSoundInfo* info)
     {
@@ -305,6 +321,10 @@ extern "C" {
         p->set_PCM = cs_set_PCM;
         // using float format
         p->set_float = cs_set_float;
+        // set operating mode options (see options above, all bit flagged)
+        p->set_mode = cs_set_mode;
+        // get operating mode options
+        p->get_mode = cs_get_mode;
         // this is non-trivial because we scan the output for limit and average samples, FYI
         p->get_info = cs_get_info;
         // this is much quicker! and don't return all the extra info
