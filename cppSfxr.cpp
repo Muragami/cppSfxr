@@ -20,6 +20,7 @@
 		* made the float paramter block size 128 bytes, 32 floats. currently using 27, leaving 5 for the future
 		* code accepts versions from streams 1.0f to <2.0f, allowing for expansion (maybe using those extra 5 parameters)
 		* added wave types: pink noise, triangle, tan, breaker, and one-bit noise from bfxr here: https://github.com/madeso/bfxr
+		* supports modes: normalize (to normalize output) and word (to force fixed point 16-bit param data)
 */
 
 #define _USE_MATH_DEFINES
