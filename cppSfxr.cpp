@@ -134,6 +134,7 @@ public:
 	unsigned int sizeBytes();
 	unsigned int memoryBytes();
 	void getLimitAverage(float* l, float* a);
+	void scale(float x);
 	void clear();
 
 	void writeStream(ostream& ofx);		// float streams
@@ -197,6 +198,17 @@ void SfxrFloatBuffer::getLimitAverage(float* l, float* a)
 	}
 	*l = limit;
 	*a = (float(average / count));
+}
+
+void SfxrFloatBuffer::scale(float x)
+{
+	for (const auto& block : bTable)
+	{
+		for (int i = 0; i < 4096; i++)
+			(*block)[i] *= x;
+	}
+	for (int i = 0; i < pBlock->size(); i++)
+		(*pBlock)[i] *= x;
 }
 
 void SfxrFloatBuffer::operator<<(float f)
@@ -831,6 +843,18 @@ void Sfxr::seed(const char* s)
 	core->seed(s);
 }
 
+// set operating mode options (see options above, all bit flagged)
+void Sfxr::setMode(unsigned int m)
+{
+	mode = m;
+}
+
+// get operating mode options
+unsigned int Sfxr::getMode()
+{
+	return mode;
+}
+
 void Sfxr::setFloat()
 {
 	// since this is the default internal format, do nothing
@@ -1017,14 +1041,40 @@ void Sfxr::randomize()
 
 bool Sfxr::loadStream(istream& ifs)
 {
-	float version = 0;
-	ifs >> version;
-	if ((version < 1.0f) || (version >= 2.0f)) return false;
-	ifs.read((char*)&paramData, sizeof(paramData));
-	ifs >> core->sound_vol;
-	created = true;
-	rebuild = true;
-	return true;
+	if (mode & SFXR_WORD_MODE)
+	{
+		int16_t version, x;
+		int16_t wordTable[32];
+		ifs >> version;
+		if ((version < 100) || (version >= 199)) return false;
+		ifs.read((char*)&wordTable, sizeof(wordTable));
+		ifs >> x;
+		core->sound_vol = (float)(x * 32000);
+		// fill in the actual float values
+		float* p = (float*)&paramData;
+		for (int i = 0; i < 8; i++)
+		{
+			int index = i * 4;
+			p[i] = (float)wordTable[i] * 32000.0f;
+			p[i+1] = (float)wordTable[i+1] * 32000.0f;
+			p[i+2] = (float)wordTable[i+2] * 32000.0f;
+			p[i+3] = (float)wordTable[i+3] * 32000.0f;
+		}
+		created = true;
+		rebuild = true;
+		return true;
+	}
+	else
+	{
+		float version = 0;
+		ifs >> version;
+		if ((version < 1.0f) || (version >= 2.0f)) return false;
+		ifs.read((char*)&paramData, sizeof(paramData));
+		ifs >> core->sound_vol;
+		created = true;
+		rebuild = true;
+		return true;
+	}
 }
 
 bool Sfxr::loadFile(const char* fname)
@@ -1035,10 +1085,32 @@ bool Sfxr::loadFile(const char* fname)
 
 bool Sfxr::writeStream(ostream& ofs)
 {
-	ofs << 1.0f;
-	ofs.write((const char*)&paramData, sizeof(paramData));
-	ofs << core->sound_vol;
-	return true;
+	if (mode & SFXR_WORD_MODE)
+	{
+		int16_t version = 100, x;
+		int16_t wordTable[32];
+		ofs.write((const char*)&version, 2);
+		// build the output word table
+		float* p = (float*)&paramData;
+		for (int i = 0; i < 8; i++)
+		{
+			int index = i * 4;
+			wordTable[i] = (int16_t)(p[i] * 32000.0f);
+			wordTable[i+1] = (int16_t)(p[i+1] * 32000.0f);
+			wordTable[i+2] = (int16_t)(p[i+2] * 32000.0f);
+			wordTable[i+3] = (int16_t)(p[i+3] * 32000.0f);
+		}
+		ofs.write((const char*)&wordTable, sizeof(wordTable));
+		x = (int16_t)(core->sound_vol * 32000.0f);
+		ofs.write((const char*)&x, 2);
+	}
+	else
+	{
+		ofs << 1.0f;
+		ofs.write((const char*)&paramData, sizeof(paramData));
+		ofs << core->sound_vol;
+		return true;
+	}
 }
 
 bool Sfxr::writeFile(const char* fname)
@@ -1234,18 +1306,39 @@ struct sxfrOutputBuffer : public std::streambuf
 
 bool Sfxr::loadString(const char* data)
 {
-	size_t dataSize = sizeof(data);
-	if (dataSize < 2 * sizeof(float) + sizeof(paramData)) return false;
-	sxfrInputBuffer osrb(data, dataSize);
-	std::istream istr(&osrb);
-	return loadStream(istr);
+	if (mode & SFXR_WORD_MODE)
+	{
+		size_t dataSize = sizeof(data);
+		if (dataSize < 34 * sizeof(uint16_t)) return false;
+		sxfrInputBuffer osrb(data, dataSize);
+		std::istream istr(&osrb);
+		return loadStream(istr);
+	}
+	else
+	{
+		size_t dataSize = sizeof(data);
+		if (dataSize < 2 * sizeof(float) + sizeof(paramData)) return false;
+		sxfrInputBuffer osrb(data, dataSize);
+		std::istream istr(&osrb);
+		return loadStream(istr);
+	}
+	
 }
 
 bool Sfxr::writeString(char* data)
 {
-	sxfrOutputBuffer osrb(data, 2 * sizeof(float) + sizeof(paramData));
-	std::ostream ostr(&osrb);
-	return writeStream(ostr);
+	if (mode & SFXR_WORD_MODE)
+	{
+		sxfrOutputBuffer osrb(data, 34 * sizeof(uint16_t));
+		std::ostream ostr(&osrb);
+		return writeStream(ostr);
+	}
+	else
+	{
+		sxfrOutputBuffer osrb(data, 2 * sizeof(float) + sizeof(paramData));
+		std::ostream ostr(&osrb);
+		return writeStream(ostr);
+	}
 }
 
 bool Sfxr::exportWaveFloatString(char* data)
@@ -1457,6 +1550,9 @@ void Sfxr::create()
 	totalSamples = 0;
 	sampleBytes = core->wav_bits / 8;
 
+	// if we are in word more, lock params to work values
+	if (mode & SFXR_WORD_MODE) lockWordParams();
+	
 	core->resetSample(false);
 	core->playing_sample = true;
 	core->buffer->clear();
@@ -1536,3 +1632,26 @@ void Sfxr::getInfo(SoundQuickInfo* info)
 	info->totalSamples = core->buffer->size();
 	info->duration = (float)info->totalSamples / (float)core->out_freq;
 }
+
+void Sfxr::normalize()
+{
+	SoundInfo si;
+
+	getInfo(si);
+	core->buffer->scale(1.0f / si.limit);
+}
+
+void Sfxr::lockWordParams()
+{
+	float* param = (float*)&paramData;
+	int index = 0;
+	for (int i = 0; i < 8; i++)
+	{
+		int index = i * 4;
+		param[index] = (float)trunc((int)param[index] * 32000);
+		param[index+1] = (float)trunc((int)param[index+1] * 32000);
+		param[index+2] = (float)trunc((int)param[index+2] * 32000);
+		param[index+3] = (float)trunc((int)param[index+3] * 32000);
+	}
+}
+

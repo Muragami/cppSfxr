@@ -101,6 +101,11 @@
 #define SFXR_WAVE_BREAKER		7
 #define SFXR_WAVE_1BIT			8
 
+#define SFXR_PLAIN_MODE			0
+#define SFXR_NORMALIZE			1	// normalize the output so limit is always 1.0f
+#define SFXR_WORD_MODE			2	// use word size params, 16 bit fixed point: -32.000 to 32.000
+
+
 // hide a lot of the internal stuff to make this nice and clean
 class SfxrCore;
 
@@ -201,6 +206,10 @@ public:
 	void setPCM(unsigned int sample_rate = 44100, unsigned int bit_depth = 16);
 	// using float format
 	void setFloat();
+	// set operating mode options (see options above, all bit flagged)
+	void setMode(unsigned int m);
+	// get operating mode options
+	unsigned int getMode();
 	// these are non-trivial because we scan the output for limit and average samples, FYI
 	void getInfo(SoundInfo& info);
 	void getInfo(SoundInfo* info);
@@ -223,7 +232,10 @@ private:
 	unsigned int totalSamples = 0;
 	unsigned int sampleBytes = 2;
 	ExportFormat format = ExportFormat::FLOAT;
+	unsigned int mode = SFXR_PLAIN_MODE;
 
+	void normalize();
+	void lockWordParams();
 	void assertSynthed();
 	unsigned int sizeWaveString();
 	unsigned int sizeWaveFloatString();
