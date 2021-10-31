@@ -39,34 +39,6 @@
 
 using namespace std;
 
-// *************************************************************************************
-// *Really* minimal PCG32 code / (c) 2014 M.E. O'Neill / pcg-random.org
-// Licensed under Apache License 2.0 (NO WARRANTY, etc. see website)
-
-typedef struct { uint64_t state;  uint64_t inc; } pcg32_random_t;
-
-inline uint32_t pcg32_random_r(pcg32_random_t* rng)
-{
-	uint64_t oldstate = rng->state;
-	// Advance internal state
-	rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
-	// Calculate output function (XSH RR), uses old state for max ILP
-	uint32_t xorshifted = (uint32_t)(((oldstate >> 18u) ^ oldstate) >> 27u);
-	uint32_t rot = oldstate >> 59u;
-#pragma warning(suppress : 4146)
-	return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
-}
-
-void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initstate, uint64_t initseq)
-{
-	rng->state = 0U;
-	rng->inc = (initseq << 1u) | 1u;
-	pcg32_random_r(rng);
-	rng->state += initstate;
-	pcg32_random_r(rng);
-}
-// *************************************************************************************
-
 #pragma pack(2)
 // *************************************************************************************
 // 40(44) byte .WAV header that preceeds a PCM data stream.
@@ -108,16 +80,9 @@ typedef struct WaveFloatFileHeader {
 // *************************************************************************************
 #pragma pack()
 
-// random macros, really should get rid of this! TODO
-#define rnd(n) (pcg32_random_r(&core->rt)%(n+1))
-#define rndc(n) (pcg32_random_r(&rt)%(n+1))
-#define frnd(range) ((float)rnd(10000) / 10000 * range)
-#define frndc(range) ((float)rndc(10000) / 10000 * range)
-
 // access macros, cleans up code a lot from the source
 #define CP(x) param->x
 #define PV(x) paramData.x
-
 
 // *************************************************************************************
 // simple collection of 16kb float buffers for data
@@ -374,6 +339,44 @@ float SfxrFloatBuffer::operator[](unsigned int index)
 // *************************************************************************************
 
 // *************************************************************************************
+// PCG32 functions, adapted from *Really* minimal PCG32 code / (c) 2014 M.E. O'Neill / pcg-random.org
+
+class PCG32
+{
+public:
+	uint64_t state;
+	uint64_t inc;
+
+	inline void seed(uint64_t initstate, uint64_t initseq)
+	{
+		state = 0U;
+		inc = (initseq << 1u) | 1u;
+		rand();
+		state += initstate;
+		rand();
+	}
+
+	inline uint32_t rand()
+	{
+		uint64_t oldstate = state;
+		// Advance internal state
+		state = oldstate * 6364136223846793005ULL + (inc | 1);
+		// Calculate output function (XSH RR), uses old state for max ILP
+		uint32_t xorshifted = (uint32_t)(((oldstate >> 18u) ^ oldstate) >> 27u);
+		uint32_t rot = oldstate >> 59u;
+#pragma warning(suppress : 4146)
+		return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+	}
+
+};
+
+// random macros, really should get rid of this! TODO
+#define rnd(n) (core->pcg.rand()%(n+1))
+#define rndc(n) (pcg.rand()%(n+1))
+#define frnd(range) ((float)rnd(10000) / 10000 * range)
+#define frndc(range) ((float)rndc(10000) / 10000 * range)
+
+// *************************************************************************************
 // randxs functions, quick xorshift* prng for noise banks
 class RandXS
 {
@@ -514,9 +517,9 @@ public:
 
 	bool playing_sample = false;
 
+	PCG32 pcg;
 	PinkNumber pn;
 	RandXS rxs;
-	pcg32_random_t rt;
 	Sfxr* parent = nullptr;
 	Sfxr::Parameters* param = nullptr;
 	SfxrFloatBuffer* buffer = nullptr;
@@ -537,7 +540,7 @@ SfxrCore::SfxrCore()
 	buffer = new SfxrFloatBuffer();
 	// initialize with the same seed to always give same outputs in a program
 	// wonder what those seeds are in ascii??? :D
-	pcg32_srandom_r(&rt, 0x6350502053667872 ^ 0xABABABAB, 0x6D75726167616D69 ^ 0xBABABABA);
+	pcg.seed(0x6350502053667872 ^ 0xABABABAB, 0x6D75726167616D69 ^ 0xBABABABA);
 	#pragma omp simd
 	for (int i = 0; i < 1024; i++)
 		phaser_buffer[i] = 0.0f;
@@ -551,7 +554,7 @@ SfxrCore::SfxrCore()
 
 void SfxrCore::seed(unsigned long long s)
 {
-	pcg32_srandom_r(&rt, 0x6350502053667872 ^ s, 0x6D75726167616D69 & s);
+	pcg.seed(0x6350502053667872 ^ s, 0x6D75726167616D69 & s);
 }
 
 void SfxrCore::seed(const char* s)
@@ -564,7 +567,7 @@ void SfxrCore::seed(const char* s)
 	while ((i < len) && (i < 8))
 		B += uint64_t(s[i]) << (i - 4);
 	if (B == 0) B = 0xBABABABA;
-	pcg32_srandom_r(&rt, 0x6350502053667872 ^ A, 0x6D75726167616D69 & B);
+	pcg.seed(0x6350502053667872 ^ A, 0x6D75726167616D69 & B);
 }
 
 void SfxrCore::resetSample(bool restart)
