@@ -171,7 +171,7 @@ public:
 
 	void reset();
 	// all of these function use PCG32, so you might want to seed it to make the exact same sounds if that is a use case?
-	void mutate();
+	void mutate(float amt = 1.0f);
 	void randomize();
 	void create(const char* what);
 	void create(int what);

@@ -8,7 +8,7 @@
 		https://www.apache.org/licenses/LICENSE-2.0
 
 	Rewritten into an engine only that outputs PCM data.
-	Jason A. Petrasko 2021
+	Jason A. Petrasko, muragami, 2021
 
 	Not an exact replica, some changes made:
 		* added local PRNG engine (PCG32, thanks slime), but using fast repeatable xorshift* 64 bit rng for internal noise buffers
@@ -21,6 +21,8 @@
 		* code accepts versions from streams 1.0f to <2.0f, allowing for expansion (maybe using those extra 5 parameters)
 		* added wave types: pink noise, triangle, tan, breaker, and one-bit noise from bfxr here: https://github.com/madeso/bfxr
 		* supports modes: normalize (to normalize output) and word (to force fixed point 16-bit param data)
+		* you can attach data to a sound definition, and that binary block is written/read with the definition when serialized
+		* if you attach data in word mode, it can't exceed 65,464 bytes because the size param is written uint16_t
 */
 
 #define _USE_MATH_DEFINES
@@ -1020,30 +1022,30 @@ void Sfxr::reset()
 	PV(arp_mod) = 0.0f;
 }
 
-void Sfxr::mutate()
+void Sfxr::mutate(float amt)
 {
-	if (rnd(1)) PV(base_freq) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(freq_ramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(freq_dramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(duty) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(duty_ramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(vib_strength) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(vib_speed) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(vib_delay) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(env_attack) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(env_sustain) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(env_decay) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(env_punch) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(lpf_resonance) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(lpf_freq) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(lpf_ramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(hpf_freq) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(hpf_ramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(pha_offset) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(pha_ramp) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(repeat_speed) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(arp_speed) += frnd(0.1f) - 0.05f;
-	if (rnd(1)) PV(arp_mod) += frnd(0.1f) - 0.05f;
+	if (rnd(1)) PV(base_freq) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(freq_ramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(freq_dramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(duty) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(duty_ramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(vib_strength) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(vib_speed) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(vib_delay) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(env_attack) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(env_sustain) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(env_decay) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(env_punch) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(lpf_resonance) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(lpf_freq) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(lpf_ramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(hpf_freq) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(hpf_ramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(pha_offset) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(pha_ramp) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(repeat_speed) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(arp_speed) += (frnd(0.1f) - 0.05f) * amt;
+	if (rnd(1)) PV(arp_mod) += (frnd(0.1f) - 0.05f) * amt;
 }
 
 void Sfxr::randomize()
@@ -1419,7 +1421,7 @@ bool Sfxr::loadString(const char* data)
 		std::istream istr(&osrb);
 		return loadStream(istr);
 	}
-	
+
 }
 
 bool Sfxr::writeString(char* data)
@@ -1649,7 +1651,7 @@ void Sfxr::create()
 
 	// if we are in word more, lock params to work values
 	if (mode & SFXR_WORD_MODE) lockWordParams();
-	
+
 	core->resetSample(false);
 	core->playing_sample = true;
 	core->buffer->clear();
@@ -1751,4 +1753,3 @@ void Sfxr::lockWordParams()
 		param[index+3] = (float)trunc((int)param[index+3] * 32000);
 	}
 }
-
