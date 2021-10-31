@@ -192,6 +192,7 @@ public:
 	bool writeString(char* data);
 	bool loadStream(std::istream& ifs);
 	bool writeStream(std::ostream& ofs);
+	unsigned int writeSize();
 	// this is the method to get the actual output
 	bool exportBuffer(ExportFormat method, void* pData);	// output to a buffer, use the size() call to know how large to make it
 	bool exportStream(ExportFormat method, std::ostream& ofs);
@@ -218,6 +219,12 @@ public:
 	void getInfo(SoundQuickInfo* info);
 	// get an index of a named parameter
 	int getParamIndex(const char* pname);
+	// attach data to this sound, make a copy?
+	void setData(void* data, unsigned int size, bool copy = true);
+	// get the data attached to this sound
+	void* getData();
+	// get the size of the data attached to this sound
+	unsigned int getDataSize();
 	// get/set the parameter at an index, like so: wave_type = mySfxr[SFXRI_WAVE_TYPE]; or mySfxr[SFXRI_WAVE_TYPE] = 2;
 	float& operator[](unsigned int i);
 	// get/set the parameter at an index, like so: wave_type = mySfxr["WAVE TYPE"]; or mySfxr["WAVE_TYPE"] = 2;
@@ -233,6 +240,9 @@ private:
 	unsigned int sampleBytes = 2;
 	ExportFormat format = ExportFormat::FLOAT;
 	unsigned int mode = SFXR_PLAIN_MODE;
+	unsigned int dataSize = 0;
+	char* dataBytes = nullptr;
+	bool dataCopied = false;
 
 	void normalize();
 	void lockWordParams();

@@ -31,6 +31,7 @@
 #include "cppSfxr.h"
 #include <time.h>
 #include <stdlib.h>
+#include <memory.h>
 #include <streambuf>
 #include <fstream>
 #include <vector>
@@ -844,16 +845,25 @@ void Sfxr::seed(const char* s)
 	core->seed(s);
 }
 
-// set operating mode options (see options above, all bit flagged)
 void Sfxr::setMode(unsigned int m)
 {
 	mode = m;
 }
 
-// get operating mode options
 unsigned int Sfxr::getMode()
 {
 	return mode;
+}
+
+unsigned int Sfxr::writeSize()
+{
+	if (mode & SFXR_WORD_MODE)
+	{
+		if (dataSize > (65536 - 72)) throw new std::runtime_error("data for sound exceeds 64k limit in word mode, Sfxr::writeSize()");
+		return 72 + dataSize;
+	}
+	else
+		return 144 + dataSize;
 }
 
 void Sfxr::setFloat()
@@ -918,6 +928,39 @@ unsigned int Sfxr::size(ExportFormat f)
 	case ExportFormat::FLOAT: sampleSize = 4; break;
 	}
 	return sampleSize * core->buffer->size() + headerSize;
+}
+
+void Sfxr::setData(void* data, unsigned int size, bool copy)
+{
+	if (dataBytes != nullptr && dataCopied == true) delete dataBytes;
+	dataCopied = copy;
+	if (data == nullptr || size == 0)
+	{
+		dataBytes = nullptr;
+		dataSize = 0;
+		return;
+	}
+	if (copy)
+	{
+		dataBytes = new char[size];
+		memcpy(dataBytes, data, size);
+		dataSize = size;
+	}
+	else
+	{
+		dataBytes = (char*)data;
+		dataSize = size;
+	}
+}
+
+void* Sfxr::getData()
+{
+	return dataBytes;
+}
+
+unsigned int Sfxr::getDataSize()
+{
+	return dataSize;
 }
 
 void Sfxr::assertSynthed()
@@ -1044,12 +1087,18 @@ bool Sfxr::loadStream(istream& ifs)
 {
 	if (mode & SFXR_WORD_MODE)
 	{
+		char head[2] = { 0, 0 };
 		int16_t version, x;
+		uint16_t sz;
 		int16_t wordTable[32];
-		ifs >> version;
+		ifs.read(head, 2);
+		if (head[0] != 'S' || head[1] != 'W') return false;
+		ifs.read((char*)&version, 2);
 		if ((version < 100) || (version >= 199)) return false;
+		ifs.read((char*)&sz, 2);
+		if (sz < 72) return false;
 		ifs.read((char*)&wordTable, sizeof(wordTable));
-		ifs >> x;
+		ifs.read((char*)&x, 2);
 		core->sound_vol = (float)(x * 32000);
 		// fill in the actual float values
 		float* p = (float*)&paramData;
@@ -1061,17 +1110,43 @@ bool Sfxr::loadStream(istream& ifs)
 			p[i+2] = (float)wordTable[i+2] * 32000.0f;
 			p[i+3] = (float)wordTable[i+3] * 32000.0f;
 		}
+		// read anymore data attached to the sound!
+		if (sz > 72)
+		{
+			unsigned int to_read = sz - 72;
+			setData(nullptr, 0);
+			dataBytes = new char[to_read];
+			ifs.read(dataBytes, to_read);
+			dataSize = to_read;
+			dataCopied = true;	// we own the data, so make sure we free it if needed!
+		}
 		created = true;
 		rebuild = true;
 		return true;
 	}
 	else
 	{
+		char head[4] = { 0, 0, 0, 0 };
+		unsigned int sz;
 		float version = 0;
-		ifs >> version;
+		ifs.read(head, 4);
+		if (head[0] != 'S' || head[1] != 'F') return false;
+		ifs.read((char*)&version, 4);
 		if ((version < 1.0f) || (version >= 2.0f)) return false;
+		ifs.read((char*)&sz, 4);
+		if (sz < 144 || sz > 4194304) return false;	// just for our sanity, limit the data to 4MB
 		ifs.read((char*)&paramData, sizeof(paramData));
-		ifs >> core->sound_vol;
+		ifs.read((char*)&(core->sound_vol), 4);
+		// read anymore data attached to the sound!
+		if (sz > 144)
+		{
+			unsigned int to_read = sz - 144;
+			setData(nullptr, 0);
+			dataBytes = new char[to_read];
+			ifs.read(dataBytes, to_read);
+			dataSize = to_read;
+			dataCopied = true;	// we own the data, so make sure we free it if needed!
+		}
 		created = true;
 		rebuild = true;
 		return true;
@@ -1088,9 +1163,13 @@ bool Sfxr::writeStream(ostream& ofs)
 {
 	if (mode & SFXR_WORD_MODE)
 	{
+		char head[2] = { 'S', 'W' };
 		int16_t version = 100, x;
+		uint16_t sz = writeSize();
 		int16_t wordTable[32];
+		ofs.write(head, 2);
 		ofs.write((const char*)&version, 2);
+		ofs.write((const char*)&sz, 2);
 		// build the output word table
 		float* p = (float*)&paramData;
 		for (int i = 0; i < 8; i++)
@@ -1104,13 +1183,26 @@ bool Sfxr::writeStream(ostream& ofs)
 		ofs.write((const char*)&wordTable, sizeof(wordTable));
 		x = (int16_t)(core->sound_vol * 32000.0f);
 		ofs.write((const char*)&x, 2);
+		if (dataBytes != nullptr)
+		{
+			ofs.write(dataBytes, dataSize);
+		}
 		return true;
 	}
 	else
 	{
-		ofs << 1.0f;
+		char head[4] = { 'S', 'F', '0', '0' };
+		unsigned int sz = writeSize();
+		float version = 1.0f;
+		ofs.write(head, 2);
+		ofs.write((const char*)&version, 4);
+		ofs.write((const char*)&sz, 4);
 		ofs.write((const char*)&paramData, sizeof(paramData));
-		ofs << core->sound_vol;
+		ofs.write((const char*)&(core->sound_vol),4);
+		if (dataBytes != nullptr)
+		{
+			ofs.write(dataBytes, dataSize);
+		}
 		return true;
 	}
 }
