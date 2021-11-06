@@ -12,9 +12,10 @@
 */
 
 #include "cppSfxr.h"
-#include "ppthread.h"
 #include <vector>
 #include <array>
+#include <thread>
+#include <mutex>
 
 using namespace std;
 
@@ -37,10 +38,10 @@ public:
 	{
 	private:
 		Sfxr* pSfxr = nullptr;
-		pthread_t pThread = 0;
-		pthread_mutex_t mutexSfxr;
-		pthread_mutex_t mutexList;
-		pthread_mutex_t mutexState;
+		thread* pThread = nullptr;
+		mutex mutexSfxr;
+		mutex mutexList;
+		mutex mutexState;
 		vector<sndParam*> buildList;
 		vector<Sfxr::SoundInfo*> infoList;
 		vector<vector<char>> outputList;

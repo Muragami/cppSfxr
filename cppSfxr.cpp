@@ -1399,7 +1399,7 @@ struct sxfrOutputBuffer : public std::streambuf
 {
 	sxfrOutputBuffer(const char* s, std::size_t n)
 	{
-		setp((char*)s, (char*)s, (char*)s + n);
+		setp((char*)s, (char*)s + n);
 	}
 };
 

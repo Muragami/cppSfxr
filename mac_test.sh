@@ -1,4 +1,4 @@
 #!/bin/bash
-g++ -m64 -s -std=c++17 -O2 -c cppSfxr.cpp -o cppSfxr.o
-g++ -m64 -s -std=c++17 -O2 -c main.cpp -o main.o
-g++ -m64 -s -std=c++17 -O2 -o main cppSfxr.o main.o
+g++ -std=c++17 -O3 -c cppSfxr.cpp -o cppSfxr.o
+g++ -std=c++17 -O3 -c main.cpp -o main.o
+g++ -std=c++17 -O3 -o main cppSfxr.o main.o

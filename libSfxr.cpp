@@ -175,17 +175,14 @@ libSfxr::threadSfxr::threadSfxr(unsigned int mode)
 {
 	pSfxr = new Sfxr();
 	pSfxr->setMode(mode);
-	pthread_mutex_init(&mutexList,nullptr);
-	pthread_mutex_init(&mutexSfxr, nullptr);
-	pthread_mutex_init(&mutexState, nullptr);
 }
 
 void libSfxr::threadSfxr::push(Sfxr::Parameters* p) { push(*p); }
 void libSfxr::threadSfxr::push(Sfxr::Parameters& p)
 {
-	pthread_mutex_lock(&mutexList);
+	mutexList.lock();
 	buildList.push_back(new sndParam(p));
-	pthread_mutex_unlock(&mutexList);
+	mutexList.unlock();
 }
 
 void libSfxr::threadSfxr::push(const char* str, unsigned int len)
@@ -193,19 +190,19 @@ void libSfxr::threadSfxr::push(const char* str, unsigned int len)
 	if (len == 0) len = (unsigned int)strlen(str);
 	char* buff = new char[len];
 	memcpy(buff, str, len);
-	pthread_mutex_lock(&mutexList);
+	mutexList.lock();
 	buildList.push_back(new sndParam(buff,len));
-	pthread_mutex_unlock(&mutexList);
+	mutexList.unlock();
 }
 
 void libSfxr::threadSfxr::begin()
 {
 	if (filling) return;
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	filling = true;
 	complete = false;
-	pthread_create(&pThread, nullptr, (void *(*)(void*))&libSfxr_threadSfxr, this);
-	pthread_mutex_unlock(&mutexState);
+	pThread = new thread(&libSfxr_threadSfxr,this);
+	mutexState.unlock();
 }
 
 void libSfxr::threadSfxr::end()
@@ -216,42 +213,42 @@ void libSfxr::threadSfxr::end()
 bool libSfxr::threadSfxr::isFilling()
 {
 	bool ret;
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	ret = filling;
-	pthread_mutex_unlock(&mutexState);
+	mutexState.unlock();
 	return ret;
 }
 
 bool libSfxr::threadSfxr::isComplete()
 {
 	bool ret;
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	ret = complete;
-	pthread_mutex_unlock(&mutexState);
+	mutexState.unlock();
 	return ret;
 }
 
 void libSfxr::threadSfxr::setComplete(bool s)
 {
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	complete = s;
-	pthread_mutex_unlock(&mutexState);
+	mutexState.unlock();
 }
 
 int libSfxr::threadSfxr::getBuilding()
 {
 	int ret;
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	ret = building;
-	pthread_mutex_unlock(&mutexState);
+	mutexState.unlock();
 	return ret;
 }
 
 void libSfxr::threadSfxr::setFilling(bool s)
 {
-	pthread_mutex_lock(&mutexState);
+	mutexState.lock();
 	filling = s;
-	pthread_mutex_unlock(&mutexState);
+	mutexState.unlock();
 }
 
 libSfxr::libSfxr(unsigned int threadCount, unsigned int mode)
