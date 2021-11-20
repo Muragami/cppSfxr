@@ -27,7 +27,6 @@ unsigned int libSfxr_threadSfxr(void* p);
 
 // *******************************************************************************
 // some filter functions for imaging
-
 void HannWindow(size_t N, vector<float>& output)
 {
 	output.clear();
@@ -167,15 +166,11 @@ void FilterDFT(vector<complex<double>>& input, vector<complex<double>>& output)
 }
 */
 
-libSfxr::sndParam::sndParam()
-{
-	memset(&param, 0, sizeof(param));
-}
-
-libSfxr::threadSfxr::threadSfxr(unsigned int mode)
+libSfxr::threadSfxr::threadSfxr(unsigned int mode, Sfxr::ExportFormat _format)
 {
 	pSfxr = new Sfxr();
 	pSfxr->setMode(mode);
+	eFormat = _format;
 }
 
 void libSfxr::threadSfxr::push(Sfxr::Parameters* p) { push(*p); }
@@ -202,13 +197,18 @@ void libSfxr::threadSfxr::begin()
 	mutexState.lock();
 	filling = true;
 	complete = false;
+	building = 0;
 	pThread = new thread(&libSfxr_threadSfxr,this);
 	mutexState.unlock();
 }
 
 void libSfxr::threadSfxr::end()
 {
-
+	mutexState.lock();
+	filling = false;
+	complete = true;
+	mutexState.unlock();
+	// todo: cleanup thread here
 }
 
 bool libSfxr::threadSfxr::isFilling()
@@ -245,6 +245,15 @@ int libSfxr::threadSfxr::getBuilding()
 	return ret;
 }
 
+int libSfxr::threadSfxr::getBuildTotal()
+{
+	int ret;
+	mutexState.lock();
+	ret = buildList.size();
+	mutexState.unlock();
+	return ret;
+}
+
 void libSfxr::threadSfxr::setFilling(bool s)
 {
 	mutexState.lock();
@@ -252,11 +261,33 @@ void libSfxr::threadSfxr::setFilling(bool s)
 	mutexState.unlock();
 }
 
-libSfxr::libSfxr(unsigned int threadCount, unsigned int mode)
+void libSfxr::threadSfxr::setBuilding(int b)
+{
+	mutexState.lock();
+	building = b;
+	mutexState.unlock();
+}
+
+void libSfxr::threadSfxr::build(int x)
+{
+	mutexSfxr.lock();
+	sndParam *ps = buildList[x];
+	if (ps->strLen != 0)
+	{
+
+	} else
+	{
+		// just params so do that!
+		pSfxr->setParameters(ps->pParam);
+	}
+	mutexSfxr.unlock();
+}
+
+libSfxr::libSfxr(unsigned int threadCount, unsigned int mode, Sfxr::ExportFormat _format)
 {
 	threadTable.reserve(threadCount);
 	for (unsigned int i = 0; i < threadCount; i++)
-		threadTable.push_back(new threadSfxr(mode));
+		threadTable.push_back(new threadSfxr(mode, _format));
 }
 
 unsigned int libSfxr_threadSfxr(void* p)
@@ -266,8 +297,17 @@ unsigned int libSfxr_threadSfxr(void* p)
 	bool ok = true;
 	while (pt->isFilling() && ok)
 	{
+		// nibble off a sound and build it!
 		int b = pt->getBuilding();
-
+		int last = pt->getBuildTotal();
+		if (b < last)
+		{
+			// we have something to build, so build it!
+			pt->build(b);
+			b++;
+			pt->setBuilding(b);
+		}
+		std::this_thread::yield();
 	}
 	pt->setComplete(true);
 

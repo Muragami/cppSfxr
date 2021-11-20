@@ -22,35 +22,45 @@ using namespace std;
 class libSfxr
 {
 public:
+	// each sound paramater is either a block of data or an already processed param array
 	struct sndParam {
 		unsigned int strLen = 0;
 		union {
-			Sfxr::Parameters param;
-			const char* str;
+			Sfxr::Parameters* pParam = nullptr;
+			const char* pStr;
 		};
 
-		sndParam();
-		sndParam(Sfxr::Parameters p) { param = p;  }
-		sndParam(const char* p, unsigned int len) : sndParam() { str = p; strLen = len; }
+		sndParam(Sfxr::Parameters p) { pParam = new Sfxr::Parameters(p);  }
+		sndParam(const char* p, unsigned int len) { pStr = p; strLen = len; }
 	};
 
+	struct sndOutput
+	{
+	public:
+		Sfxr::SoundInfo* pInfo = nullptr;
+		char* pSample = nullptr;
+
+
+	};
+
+	// the thread magic that allows the system to load/create multiple sounds at once
 	class threadSfxr
 	{
 	private:
 		Sfxr* pSfxr = nullptr;
+		Sfxr::ExportFormat eFormat = Sfxr::ExportFormat::PCM16;
 		thread* pThread = nullptr;
 		mutex mutexSfxr;
 		mutex mutexList;
 		mutex mutexState;
 		vector<sndParam*> buildList;
-		vector<Sfxr::SoundInfo*> infoList;
-		vector<vector<char>> outputList;
+		vector<sndOutput*> outputList;
 		int building = -1;
 		bool complete = false;
 		bool filling = false;
 
 	public:
-		threadSfxr(unsigned int mode);
+		threadSfxr(unsigned int mode = 0, Sfxr::ExportFormat _format = Sfxr::ExportFormat::PCM16);
 
 		void push(Sfxr::Parameters& p);
 		void push(Sfxr::Parameters* p);
@@ -62,13 +72,16 @@ public:
 		bool isFilling();
 		bool isComplete();
 		int getBuilding();
+		int getBuildTotal();
 
 		void setComplete(bool s);
 		void setFilling(bool s);
+		void setBuilding(int b);
+
+		void build(int x);
 	};
 
 	vector<threadSfxr*> threadTable;
 
-	libSfxr(unsigned int threadCount, unsigned int mode);
+	libSfxr(unsigned int threadCount, unsigned int mode = 0, Sfxr::ExportFormat _format = Sfxr::ExportFormat::PCM16);
 };
-
