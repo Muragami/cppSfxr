@@ -281,6 +281,7 @@ void libSfxr::threadSfxr::build(int x)
 	pSfxr->exportBuffer(eFormat,pOut->pSample);
 	pOut->pInfo = new Sfxr::SoundQuickInfo();
 	pSfxr->getInfo(pOut->pInfo);
+	outputList.push_back(pOut);
 	mutexSfxr.unlock();
 }
 
