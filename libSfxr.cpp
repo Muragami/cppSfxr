@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <exception>
 #include <stdexcept>
+#include <cstring>
 #include <memory.h>
 #include <stdlib.h>
 
