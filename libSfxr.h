@@ -37,10 +37,9 @@ public:
 	struct sndOutput
 	{
 	public:
-		Sfxr::SoundInfo* pInfo = nullptr;
+		Sfxr::SoundQuickInfo* pInfo = nullptr;
+		unsigned int sampleBytes = 0;
 		char* pSample = nullptr;
-
-
 	};
 
 	// the thread magic that allows the system to load/create multiple sounds at once

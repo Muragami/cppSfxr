@@ -272,14 +272,15 @@ void libSfxr::threadSfxr::build(int x)
 {
 	mutexSfxr.lock();
 	sndParam *ps = buildList[x];
-	if (ps->strLen != 0)
-	{
-
-	} else
-	{
-		// just params so do that!
-		pSfxr->setParameters(ps->pParam);
-	}
+	if (ps->strLen != 0) pSfxr->loadString(ps->pStr);
+	else pSfxr->setParameters(ps->pParam);
+	pSfxr->create();
+	sndOutput *pOut = new sndOutput();
+	pOut->sampleBytes = pSfxr->size(eFormat);
+	pOut->pSample = new char[pOut->sampleBytes];
+	pSfxr->exportBuffer(eFormat,pOut->pSample);
+	pOut->pInfo = new Sfxr::SoundQuickInfo();
+	pSfxr->getInfo(pOut->pInfo);
 	mutexSfxr.unlock();
 }
 
@@ -300,6 +301,7 @@ unsigned int libSfxr_threadSfxr(void* p)
 		// nibble off a sound and build it!
 		int b = pt->getBuilding();
 		int last = pt->getBuildTotal();
+		std::this_thread::yield();
 		if (b < last)
 		{
 			// we have something to build, so build it!

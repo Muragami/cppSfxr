@@ -13,6 +13,7 @@ for the following platforms (in th dll folder):
 
 * **Windows**: x64cppSfxr.dll, compiled with MSVC, for any Intel AMD64 machine
 * **Mac OS X**: x64cppSfxr.dylib, compiled with gcc/clang via brew, for Intel macs.
+* **Mac OS X (M1)**: m1cppSfxr.dylib, compiled with gcc/clang via brew, for new Apple Silicon macs.
 * **Debian**: x64cppSfxr.so, compiled with gcc, for any Intel AMD64 machine.
 
 While not provided prebuilt, it is also trivial to compile into a small static library
